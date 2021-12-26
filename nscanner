@@ -1,0 +1,104 @@
+#! /bin/bash
+break="========================================================================"
+echo
+echo $break
+echo
+echo "   ███╗   ██╗███████╗████████╗██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗
+   ████╗  ██║██╔════╝╚══██╔══╝██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝
+   ██╔██╗ ██║█████╗     ██║   ██║ █╗ ██║██║   ██║██████╔╝█████╔╝ 
+   ██║╚██╗██║██╔══╝     ██║   ██║███╗██║██║   ██║██╔══██╗██╔═██╗ 
+   ██║ ╚████║███████╗   ██║   ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
+   ╚═╝  ╚═══╝╚══════╝   ╚═╝    ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
+                                                                 "
+echo
+echo "   ███████╗ ██████╗ █████╗ ███╗   ██╗███╗   ██╗███████╗██████╗ 
+   ██╔════╝██╔════╝██╔══██╗████╗  ██║████╗  ██║██╔════╝██╔══██╗
+   ███████╗██║     ███████║██╔██╗ ██║██╔██╗ ██║█████╗  ██████╔╝
+   ╚════██║██║     ██╔══██║██║╚██╗██║██║╚██╗██║██╔══╝  ██╔══██╗
+   ███████║╚██████╗██║  ██║██║ ╚████║██║ ╚████║███████╗██║  ██║
+   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
+                                                               "
+echo "                                         tool developped by QuetzalCoatl"
+echo 
+echo $break
+echo
+echo "========================= NETWORK INFORMATIONS ========================="
+
+function tcpscan ()
+{
+    ip=$1
+    for port in 21 22 23 25 53 80 110 111 135 139 143 199 443 445 587 993 995 1025 1720 1723 3306 3389 5900 8080 8888;
+    do  
+        timeout 1 bash -c "</dev/tcp/$ip/$port && echo \" ~ Port $port is open\" || echo \" ~ Port $port is closed\" > /dev/null" 2>/dev/null || echo Connection timeout > /dev/null
+    done
+}
+
+# getting the user's ip address and the netmask 
+laddress=$(ifconfig | grep broadcast | cut -d " " -f 10)
+netmask=$(ifconfig | grep broadcast | cut -d " " -f 13)
+
+# getting each 4 separated octets from both the IP address and the mask
+IFS=. read -r i1 i2 i3 i4 <<< "$laddress"
+IFS=. read -r m1 m2 m3 m4 <<< "$netmask"
+echo
+echo "[+] user IP   : $laddress"
+echo "[+] netmask   : $netmask"
+
+# calculating some network informations from the laddress and the mask
+echo "[+] network   : $((i1 & m1)).$((i2 & m2)).$((i3 & m3)).$((i4 & m4))"
+echo "[+] broadcast : $((i1 & m1 | 255-m1)).$((i2 & m2 | 255-m2)).$((i3 & m3 | 255-m3)).$((i4 & m4 | 255-m4))"
+echo 
+echo "=========================== SCANNING PROCESS ==========================="
+echo 
+echo "" > pingable.txt
+
+for ip in {1..254}; 
+do 
+    ping -c1 $((i1 & m1)).$((i2 & m2)).$((i3 & m3)).$ip | grep "ttl=64" | cut -d " " -f 3 | tr -d ":" >> pingable.txt &
+done
+
+cat pingable.txt | sort | uniq > sorted_pingable.txt
+
+echo -n "Do you want to perform a ping scan on your network ? (Y/n) "
+read choice
+while [[ "$choice" != "Y" && "$choice" != "n" && "$choice" != "y" && "$choice" != "N" && "$choice" != "" ]]
+do
+    echo -n "Invalid option. Do you want to perform a ping scan on your network ? (Y/n) "
+    read choice
+done
+if [[ "$choice" == "Y" || "$choice" == "y" || "$choice" == "" ]]
+then
+    echo
+    echo "[+] pingable IP addresses on the network : "
+    cat sorted_pingable.txt
+    echo 
+    echo -n "Do you want to perform a port scan on those devices ? (Y/n) "
+    read choice2
+    while [[ "$choice2" != "Y" && "$choice2" != "n" && "$choice2" != "y" && "$choice2" != "N" && "$choice2" != "" ]]
+    do
+        echo -n "Invalid option. Do you want to perform a port scan on those devices ? (Y/n) "
+        read choice2
+    done
+    if [[ "$choice2" == "Y" || "$choice2" == "y" || "$choice2" == "" ]]
+    then
+        echo
+        echo "[+] Scanning the top 25 most scanned ports"
+        echo
+        for ipadd in $(cat sorted_pingable.txt);
+        do 
+            echo "[+] Scanning $ipadd"
+            tcpscan $ipadd | grep open || echo " ~ No port open on $ipadd"; echo;
+        done
+    else
+        echo
+        echo "ok, bye."
+        echo
+    fi
+else
+    echo
+    echo "ok, bye."
+    echo
+fi
+rm -f pingable.txt
+rm -f sorted_pingable.txt
+exit
